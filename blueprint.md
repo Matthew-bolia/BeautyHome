@@ -1,8 +1,8 @@
-# Blueprint de l'Application "Salon de Coiffure"
+# Blueprint de l'Application "Beauty Home"
 
 ## Vue d'ensemble
 
-Cette application est une plateforme pour un salon de coiffure, conçue pour servir à la fois les clients et le personnel administratif. Elle dispose de deux rôles principaux avec des permissions distinctes : Client et Administrateur.
+Cette application est une plateforme pour un salon de beauté et de coiffure, conçue pour servir à la fois les clients et le personnel administratif. Elle dispose de deux rôles principaux avec des permissions distinctes : **Client** et **Administrateur**. L'objectif est de fournir une vitrine élégante pour les services et de faciliter la prise de rendez-vous et la gestion du salon.
 
 ---
 
@@ -10,63 +10,65 @@ Cette application est une plateforme pour un salon de coiffure, conçue pour ser
 
 ### Design et Thème
 - **Thème :** L'application supporte un mode clair et un mode sombre, gérés par `ThemeProvider`.
-- **Polices :** Utilisation de `google_fonts` pour une typographie élégante (`Playfair Display`, `Oswald`, `Lato`).
-- **Style Visuel :** Design moderne avec une section "héro" (image d'en-tête), des cartes de service visuelles, et une barre de navigation inférieure.
+- **Polices :** Utilisation de `google_fonts` pour une typographie élégante (`Playfair Display`, `Oswald`, `Lato`, `Cormorant Garamond`, `Inter`).
+- **Style Visuel :** Design moderne et épuré inspiré de Pinterest, avec un fil d'actualité de publications (images de réalisations), des cartes de service, et des modales interactives.
+- **Écran de Profil :** Une page dédiée où les utilisateurs peuvent voir et modifier leurs informations de base (nom, photo).
 
 ### Fonctionnalités Implémentées
-- **Écran de Démarrage (`SplashScreen`) :** Un écran d'accueil temporaire au lancement.
+- **Authentification :** Système de connexion/inscription complet via Firebase Auth (Email/Google).
 - **Page d'Accueil (`HomeScreen`) :**
-    - **Navigation :** Une barre de navigation inférieure (`BottomNavigationBar`) avec les sections : Accueil, Services, Galerie, Contact.
-    - **Contenu :** Une section héro visuelle, une grille présentant les services sous forme de cartes (`Card`), et un bouton d'appel à l'action "Prendre Rendez-vous".
-- **Gestion du Thème :** Un bouton dans l'AppBar permet de basculer entre le mode clair et le mode sombre.
+    - **Fil d'actualité :** Affichage de publications sous forme de grille "Pinterest".
+    - **Recherche :** Filtrage des publications par nom d'utilisateur.
+    - **Navigation :** Un menu latéral (`Drawer`) permet d'accéder aux différentes sections.
+- **Gestion du Profil :**
+    - Modification du nom d'affichage.
+    - Changement de la photo de profil via la galerie ou l'appareil photo (`image_picker`), uploadée sur Firebase Storage.
+- **Prise de Rendez-vous (`BookingScreen`) :** Un formulaire fonctionnel pour la prise de rendez-vous.
+- **Système de Rôles :**
+    - Le rôle `isAdmin` est lu depuis Firestore (`users/{uid}`).
+    - Un lien vers un `AdminDashboard` est conditionnellement affiché dans le menu pour les administrateurs.
 
 ---
 
-## 2. Plan pour la Prochaine Étape : Implémentation des Rôles (Client/Admin)
+## 2. Plan de Développement : Prochaines Fonctionnalités
 
-### Objectif
-Mettre en place un système d'authentification et de gestion des rôles pour différencier les fonctionnalités accessibles aux clients et aux administrateurs.
+### A. Refonte de la Gestion de Contenu (Admin)
 
-### Plan Détaillé
+L'objectif est de permettre aux administrateurs de gérer tout le contenu dynamique de l'application directement depuis le `AdminDashboard`, sans avoir à modifier le code.
 
-**A. Authentification et Gestion des Rôles**
-1.  **Dépendances Firebase :** Intégrer `firebase_auth` pour la connexion/inscription et `cloud_firestore` pour la base de données.
-2.  **Flux d'Authentification :**
-    - Le flux de l'application sera : `SplashScreen` -> `AuthWrapper`.
-    - `AuthWrapper` vérifiera l'état de connexion de l'utilisateur.
-        - **Non connecté :** Redirige vers `AuthScreen` (connexion / inscription).
-        - **Connecté :** Lit le rôle de l'utilisateur depuis Firestore et le redirige vers l'écran approprié.
-3.  **Gestion des Rôles :**
-    - Le rôle (`client` ou `admin`) sera assigné lors de l'inscription. Pour la sécurité, l'assignation du rôle `admin` se fera manuellement via la console Firebase dans un premier temps.
+#### **1. Gestion des Publications (Fil d'actualité)**
+- **Ce qui existe :** Les publications sont actuellement codées en dur dans `home_screen.dart`.
+- **Ce qui sera fait :**
+    - **Backend :** Créer une collection `publications` dans Firestore pour stocker les informations de chaque post (URL de l'image, nom de l'auteur, date, etc.).
+    - **Frontend (Admin) :** Dans le dashboard, créer une interface pour :
+        - **Ajouter** une nouvelle publication (uploader une image, saisir les détails).
+        - **Modifier** les informations d'une publication existante.
+        - **Supprimer** une publication.
+    - **Frontend (Client) :** `HomeScreen` lira et affichera le flux de publications directement depuis Firestore.
 
-**B. Modèle de Données (Firestore)**
-- **Collection `users` :**
-    - `uid` (string)
-    - `email` (string)
-    - `displayName` (string)
-    - `role` (string: 'client' | 'admin')
-- **Collection `services` :**
-    - `serviceId` (string)
-    - `name` (string)
-    - `description` (string)
-    - `price` (number)
-    - `imageUrl` (string)
-    - `createdBy` (string: `uid` de l'admin)
-- **Collection `appointments` :**
-    - `appointmentId` (string)
-    - `userId` (string: `uid` du client)
-    - `serviceId` (string)
-    - `date` (timestamp)
-    - `status` (string: 'pending' | 'confirmed' | 'cancelled')
+#### **2. Gestion des Services**
+- **Ce qui existe :** Les services sont codés en dur dans `services_screen.dart`.
+- **Ce qui sera fait :**
+    - **Backend :** Créer une collection `services` dans Firestore.
+    - **Frontend (Admin) :** Dans le dashboard, créer une interface pour ajouter, modifier et supprimer des services (nom, description, prix, image).
+    - **Frontend (Client) :** La page des services lira les données depuis Firestore.
 
-**C. Différenciation de l'Interface Utilisateur**
+#### **3. Gestion des Spécialistes**
+- **Ce qui existe :** Les spécialistes sont codés en dur dans `specialists_screen.dart`.
+- **Ce qui sera fait :**
+    - **Backend :** Créer une collection `specialists` dans Firestore.
+    - **Frontend (Admin) :** Dans le dashboard, créer une interface pour ajouter, modifier et supprimer des spécialistes (nom, rôle, photo).
+    - **Frontend (Client) :** La page des spécialistes lira les données depuis Firestore.
 
-- **Interface Administrateur :**
-    - Un tableau de bord (`AdminDashboard`) permettant de :
-        - **Gérer les Services :** Créer, voir, modifier et supprimer des services.
-        - **Gérer les Rendez-vous :** Voir les demandes des clients, les accepter ou les refuser.
-        - **Gérer les Utilisateurs :** Voir la liste des clients et potentiellement les bloquer.
-- **Interface Client (`UserHomeScreen`) :**
-    - Voir la liste des services publiés par les administrateurs.
-    - Cliquer sur un service pour voir les détails.
-    - Soumettre une demande de rendez-vous pour un service.
+### B. Gestion des Utilisateurs (Admin)
+
+- **Ce qui sera fait :**
+    - **Backend & Frontend (Admin) :** Créer une section "Gérer les Clients" dans le dashboard.
+        - Lister tous les utilisateurs depuis la collection `users` de Firestore.
+        - Permettre à un admin de **supprimer** un utilisateur (suppression de son document Firestore et de son compte Firebase Auth).
+        - Permettre à un admin de **"bloquer"** un utilisateur (en ajoutant un champ `isBlocked: true` à son document, ce qui pourrait l'empêcher de se connecter ou d'utiliser certaines fonctionnalités).
+
+### C. Fonctionnalités Client
+
+- **Ce qui sera fait :**
+    - **Enregistrement d'images :** Sur chaque publication du fil d'actualité, ajouter une option (par exemple, un bouton "télécharger") pour que le client puisse enregistrer l'image directement dans la galerie de son téléphone. Cela nécessitera l'utilisation de packages comme `image_gallery_saver` et `dio` (pour télécharger l'image depuis son URL).

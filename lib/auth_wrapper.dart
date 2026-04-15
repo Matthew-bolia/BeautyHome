@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:myapp/email_verification_screen.dart';
+import 'package:myapp/home_screen_skeleton.dart'; 
 import 'home_screen.dart';
 import 'auth_screen.dart';
 import 'admin_dashboard.dart';
@@ -13,24 +15,29 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // While waiting for connection, show a loading indicator
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          // On affiche le skeleton pendant la vérification initiale
+          return const HomeScreenSkeleton();
         }
 
-        // If user is not signed in, show the login/register screen
-        if (!snapshot.hasData) {
-          return const AuthScreen(); 
-        }
+        if (snapshot.hasData) {
+          final user = snapshot.data!;
+          
+          final isGoogleProvider = user.providerData.any((userInfo) => userInfo.providerId == 'google.com');
 
-        // If user is signed in, check their role and show the appropriate screen
-        return RoleBasedWrapper(user: snapshot.data!);
+          if (user.emailVerified || isGoogleProvider) {
+            return RoleBasedWrapper(user: user);
+          } else {
+            return const EmailVerificationScreen();
+          }
+        } else {
+          return const AuthScreen();
+        }
       },
     );
   }
 }
 
-// This widget checks the user's role and shows the correct screen
 class RoleBasedWrapper extends StatelessWidget {
   final User user;
   const RoleBasedWrapper({super.key, required this.user});
@@ -40,32 +47,26 @@ class RoleBasedWrapper extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
       builder: (context, snapshot) {
-
-        // Handle loading state for the role check
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          // On affiche aussi le skeleton ici, pendant la récupération du rôle
+          return const HomeScreenSkeleton();
         }
 
-        // Handle errors
         if (snapshot.hasError) {
           return const Scaffold(body: Center(child: Text('Something went wrong.')));
         }
 
-        // This case handles a user authenticated with Firebase but not yet present in our 'users' collection.
-        // It can happen with a fresh signup. Defaulting to the client view is a safe choice.
         if (!snapshot.hasData || !snapshot.data!.exists) {
-           return const HomeScreen(); 
+          return const HomeScreen(); 
         }
 
-        // Safely get user role from the document
         final data = snapshot.data!.data() as Map<String, dynamic>;
-        final String role = data['role'] ?? 'client'; // Default to 'client' if role is null
+        final String role = data['role'] ?? 'client';
 
-        // Show the correct screen based on the role
         if (role == 'admin') {
-          return const AdminDashboard(); // The admin interface
+          return const AdminDashboard();
         } else {
-          return const HomeScreen(); // The standard user interface
+          return const HomeScreen();
         }
       },
     );

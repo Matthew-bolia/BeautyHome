@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/auth_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Importer le package
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -38,7 +39,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
     {
       'imageUrl':
-          'https://images.pexels.com/photos/5938592/pexels-photo-5938592.jpeg',
+          'https://media.istockphoto.com/id/2260248040/fr/photo/masque-facial.jpg?s=612x612&w=0&k=20&c=GQhOjPT14H_WmaRQhiFkrH4tMBrRXXp1E-p8TBUGUHo=',
       'FR': {
         'title': 'Beauté & soin à portée de main',
         'description':
@@ -110,7 +111,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: _currentPage == _onboardingData.length - 1
                 ? Center(
                     child: ElevatedButton(
-                      onPressed: () {
+                      // --- MODIFICATION CI-DESSOUS ---
+                      onPressed: () async {
+                        // Rendre la fonction asynchrone
+                        // 1. Sauvegarder que l'accueil est terminé
+                        final SharedPreferences prefs =
+                            await SharedPreferences.getInstance();
+                        await prefs.setBool('onboarding_complete', true);
+
+                        if (!mounted) return;
+
+                        // 2. Conserver l'ancienne navigation
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(

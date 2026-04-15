@@ -1,1 +1,45 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"beauty-home-e2ea4","appId":"1:586148290831:android:f67545ef6ffa1b3eee9e7a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"beauty-home-e2ea4","configurations":{"android":"1:586148290831:android:f67545ef6ffa1b3eee9e7a","web":"1:586148290831:web:dea77484b428bc1aee9e7a"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "beauty-home-e2ea4",
+          "appId": "1:586148290831:android:f67545ef6ffa1b3eee9e7a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "beauty-home-e2ea4",
+          "configurations": {
+            "android": "1:586148290831:android:f67545ef6ffa1b3eee9e7a",
+            "web": "1:586148290831:web:dea77484b428bc1aee9e7a"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ],
+  "firestore": {
+    "database": "(default)",
+    "location": "europe-west",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
