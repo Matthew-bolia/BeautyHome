@@ -1,38 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:myapp/email_verification_screen.dart';
-import 'package:myapp/home_screen_skeleton.dart'; 
+import 'verify_code_screen.dart';
+import 'widgets/skeleton_loader.dart'; // Importation corrigée
 import 'home_screen.dart';
 import 'auth_screen.dart';
 import 'admin_dashboard.dart';
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  late final Future<void> _redirectResultFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _redirectResultFuture = _handleRedirectSignIn();
+  }
+
+  Future<void> _handleRedirectSignIn() async {
+    try {
+      await FirebaseAuth.instance.getRedirectResult();
+    } catch (e) {
+      debugPrint("Erreur lors de la récupération de la redirection: $e");
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return FutureBuilder(
+      future: _redirectResultFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // On affiche le skeleton pendant la vérification initiale
-          return const HomeScreenSkeleton();
+          // Correction de la coquille ici
+          return const Scaffold(body: PinterestGridSkeleton());
         }
 
-        if (snapshot.hasData) {
-          final user = snapshot.data!;
-          
-          final isGoogleProvider = user.providerData.any((userInfo) => userInfo.providerId == 'google.com');
+        return StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, authSnapshot) {
+            if (authSnapshot.connectionState == ConnectionState.waiting) {
+              // Correction de la coquille ici aussi
+              return const Scaffold(body: PinterestGridSkeleton());
+            }
 
-          if (user.emailVerified || isGoogleProvider) {
-            return RoleBasedWrapper(user: user);
-          } else {
-            return const EmailVerificationScreen();
-          }
-        } else {
-          return const AuthScreen();
-        }
+            if (authSnapshot.hasData) {
+              final user = authSnapshot.data!;
+              final isGoogleProvider = user.providerData.any(
+                (userInfo) => userInfo.providerId == 'google.com',
+              );
+
+              if (user.emailVerified || isGoogleProvider) {
+                return RoleBasedWrapper(user: user);
+              } else {
+                // Note: Assurez-vous que VerifyCodeScreen gère correctement l'email
+                return VerifyCodeScreen(email: user.email ?? '');
+              }
+            } else {
+              return AuthScreen();
+            }
+          },
+        );
       },
     );
   }
@@ -45,19 +78,24 @@ class RoleBasedWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // On affiche aussi le skeleton ici, pendant la récupération du rôle
-          return const HomeScreenSkeleton();
+          // Et une dernière correction ici
+          return const Scaffold(body: PinterestGridSkeleton());
         }
 
         if (snapshot.hasError) {
-          return const Scaffold(body: Center(child: Text('Something went wrong.')));
+          return const Scaffold(
+            body: Center(child: Text('Something went wrong.')),
+          );
         }
 
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const HomeScreen(); 
+          return const HomeScreen();
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;

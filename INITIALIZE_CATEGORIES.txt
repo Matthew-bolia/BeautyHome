@@ -1,0 +1,255 @@
+/*
+    INITIALISATION DES CATÉGORIES DE SERVICES
+    
+    Ce script initialise les catégories prédéfinies dans Firestore.
+    Vous pouvez l'utiliser de deux façons:
+    1. Comme Cloud Function Firebase
+    2. Manuellement via Firebase Console
+*/
+
+// ===== OPTION 1: Cloud Function (functions/index.js) =====
+// Ajoutez ceci à votre fichier functions/index.js
+
+/*
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+
+const db = admin.firestore();
+
+const predefinedCategories = [
+  {
+    id: "haircut_women",
+    name: "Coiffure Femme",
+    icon: "💇‍♀️",
+    description: "Coupes, colorations et soins capillaires pour femmes",
+  },
+  {
+    id: "haircut_men",
+    name: "Coiffure Hommes",
+    icon: "💇‍♂️",
+    description: "Coupes et rasages pour hommes",
+  },
+  {
+    id: "haircut_children",
+    name: "Coiffure Enfants",
+    icon: "👨‍🦱",
+    description: "Coupes adaptées aux enfants",
+  },
+  {
+    id: "manicure",
+    name: "Manucure",
+    icon: "💅",
+    description: "Soins et décoration des ongles des mains",
+  },
+  {
+    id: "pedicure",
+    name: "Pédicure",
+    icon: "🦶",
+    description: "Soins et décoration des ongles des pieds",
+  },
+  {
+    id: "facial_care",
+    name: "Soins de Visage",
+    icon: "✨",
+    description: "Nettoyage, gommage et soins hydratants",
+  },
+  {
+    id: "massage",
+    name: "Massage",
+    icon: "💆",
+    description: "Massage relaxant et thérapeutique",
+  },
+  {
+    id: "nail_art",
+    name: "Nail Art & Décoration",
+    icon: "💎",
+    description: "Décoration et dessin sur ongles",
+  },
+  {
+    id: "eyebrow",
+    name: "Sourcils",
+    icon: "🎭",
+    description: "Épilation et mise en forme des sourcils",
+  },
+  {
+    id: "waxing",
+    name: "Épilation à la Cire",
+    icon: "🔥",
+    description: "Épilation complète ou partielle",
+  },
+  {
+    id: "extensions",
+    name: "Extensions & Poses",
+    icon: "💄",
+    description: "Extensions de cheveux, cils et ongles",
+  },
+  {
+    id: "makeup",
+    name: "Maquillage",
+    icon: "💄",
+    description: "Maquillage de jour, soirée ou événement",
+  },
+];
+
+exports.initializeServiceCategories = functions.https.onRequest(
+  async (req, res) => {
+    try {
+      const batch = db.batch();
+
+      for (const category of predefinedCategories) {
+        const docRef = db.collection("serviceCategories").doc(category.id);
+        batch.set(docRef, {
+          name: category.name,
+          icon: category.icon,
+          description: category.description,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+      res.json({
+        success: true,
+        message: `${predefinedCategories.length} catégories initialisées avec succès`,
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'initialisation:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+*/
+
+// ===== OPTION 2: INITIALISATION MANUELLE VIA FIREBASE CONSOLE =====
+/*
+
+1. Allez à https://console.firebase.google.com/
+2. Sélectionnez "beauty_home"
+3. Allez à Firestore Database
+4. Cliquez sur "+ Ajouter une collection"
+5. Entrez le nom: "serviceCategories"
+6. Cliquez sur "Suivant"
+7. Ajouter les documents suivants:
+
+Document ID: haircut_women
+{
+  "name": "Coiffure Femme",
+  "icon": "💇‍♀️",
+  "description": "Coupes, colorations et soins capillaires pour femmes"
+}
+
+Document ID: haircut_men
+{
+  "name": "Coiffure Hommes",
+  "icon": "💇‍♂️",
+  "description": "Coupes et rasages pour hommes"
+}
+
+Document ID: haircut_children
+{
+  "name": "Coiffure Enfants",
+  "icon": "👨‍🦱",
+  "description": "Coupes adaptées aux enfants"
+}
+
+Document ID: manicure
+{
+  "name": "Manucure",
+  "icon": "💅",
+  "description": "Soins et décoration des ongles des mains"
+}
+
+Document ID: pedicure
+{
+  "name": "Pédicure",
+  "icon": "🦶",
+  "description": "Soins et décoration des ongles des pieds"
+}
+
+Document ID: facial_care
+{
+  "name": "Soins de Visage",
+  "icon": "✨",
+  "description": "Nettoyage, gommage et soins hydratants"
+}
+
+Document ID: massage
+{
+  "name": "Massage",
+  "icon": "💆",
+  "description": "Massage relaxant et thérapeutique"
+}
+
+Document ID: nail_art
+{
+  "name": "Nail Art & Décoration",
+  "icon": "💎",
+  "description": "Décoration et dessin sur ongles"
+}
+
+Document ID: eyebrow
+{
+  "name": "Sourcils",
+  "icon": "🎭",
+  "description": "Épilation et mise en forme des sourcils"
+}
+
+Document ID: waxing
+{
+  "name": "Épilation à la Cire",
+  "icon": "🔥",
+  "description": "Épilation complète ou partielle"
+}
+
+Document ID: extensions
+{
+  "name": "Extensions & Poses",
+  "icon": "💄",
+  "description": "Extensions de cheveux, cils et ongles"
+}
+
+Document ID: makeup
+{
+  "name": "Maquillage",
+  "icon": "💄",
+  "description": "Maquillage de jour, soirée ou événement"
+}
+
+*/
+
+// ===== OPTION 3: VIA DART (Flutter Admin Package) =====
+// Vous pouvez également initialiser dans l'app Flutter
+
+/*
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+Future<void> initializeServiceCategories() async {
+  final categories = [
+    {
+      "id": "haircut_women",
+      "name": "Coiffure Femme",
+      "icon": "💇‍♀️",
+      "description": "Coupes, colorations et soins capillaires pour femmes",
+    },
+    // ... autres catégories
+  ];
+
+  final batch = FirebaseFirestore.instance.batch();
+
+  for (final category in categories) {
+    final docRef = FirebaseFirestore.instance
+        .collection('serviceCategories')
+        .doc(category['id'] as String);
+    
+    batch.set(docRef, {
+      'name': category['name'],
+      'icon': category['icon'],
+      'description': category['description'],
+    });
+  }
+
+  await batch.commit();
+  print('Catégories initialisées avec succès');
+}
+
+// Appelez cette fonction une seule fois au démarrage de l'app (admin)
+*/

@@ -30,9 +30,23 @@ Cette application est une plateforme pour un salon de beauté et de coiffure, co
 
 ---
 
-## 2. Plan de Développement : Prochaines Fonctionnalités
+## 2. Plan de Développement et Tâches en Pause
 
-### A. Refonte de la Gestion de Contenu (Admin)
+### A. Vérification par E-mail (EN PAUSE)
+
+**Objectif :** S'assurer que l'adresse e-mail d'un nouvel utilisateur est valide en lui envoyant un code à 6 chiffres.
+
+- **Statut :**
+    - Le flux de l'application (inscription -> écran de vérification -> écran d'accueil) est en place.
+    - Une Cloud Function a été écrite pour envoyer l'e-mail avec le code via Nodemailer.
+- **Action Requise :** La fonctionnalité est **en pause**. Le déploiement de la Cloud Function a échoué car le projet Firebase doit être sur le **plan "Blaze"** (paiement à l'utilisation).
+- **Prochaine Étape (quand le plan sera mis à jour) :**
+    1. Confirmer que le projet est sur le plan Blaze.
+    2. Demander à l'utilisateur ses identifiants Nodemailer (Gmail + Mot de passe d'application).
+    3. Mettre à jour les variables d'environnement de la fonction avec les bons identifiants.
+    4. Déployer la fonction avec `firebase deploy --only functions`.
+
+### B. Refonte de la Gestion de Contenu (Admin)
 
 L'objectif est de permettre aux administrateurs de gérer tout le contenu dynamique de l'application directement depuis le `AdminDashboard`, sans avoir à modifier le code.
 
@@ -60,7 +74,7 @@ L'objectif est de permettre aux administrateurs de gérer tout le contenu dynami
     - **Frontend (Admin) :** Dans le dashboard, créer une interface pour ajouter, modifier et supprimer des spécialistes (nom, rôle, photo).
     - **Frontend (Client) :** La page des spécialistes lira les données depuis Firestore.
 
-### B. Gestion des Utilisateurs (Admin)
+### C. Gestion des Utilisateurs (Admin)
 
 - **Ce qui sera fait :**
     - **Backend & Frontend (Admin) :** Créer une section "Gérer les Clients" dans le dashboard.
@@ -68,7 +82,7 @@ L'objectif est de permettre aux administrateurs de gérer tout le contenu dynami
         - Permettre à un admin de **supprimer** un utilisateur (suppression de son document Firestore et de son compte Firebase Auth).
         - Permettre à un admin de **"bloquer"** un utilisateur (en ajoutant un champ `isBlocked: true` à son document, ce qui pourrait l'empêcher de se connecter ou d'utiliser certaines fonctionnalités).
 
-### C. Fonctionnalités Client
+### D. Fonctionnalités Client
 
 - **Ce qui sera fait :**
     - **Enregistrement d'images :** Sur chaque publication du fil d'actualité, ajouter une option (par exemple, un bouton "télécharger") pour que le client puisse enregistrer l'image directement dans la galerie de son téléphone. Cela nécessitera l'utilisation de packages comme `image_gallery_saver` et `dio` (pour télécharger l'image depuis son URL).

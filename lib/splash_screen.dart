@@ -4,8 +4,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:connectivity_plus/connectivity_plus.dart'; // La bonne méthode
-import 'package:myapp/onboarding_screen.dart';
-import 'package:myapp/auth_wrapper.dart';
+import 'package:beauty_home/onboarding_screen.dart';
+import 'package:beauty_home/auth_wrapper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -72,35 +72,29 @@ class _SplashScreenState extends State<SplashScreen> {
               // En cas d'erreur (pas de connexion), on affiche le widget d'erreur
               return _buildErrorWidget();
             } else {
-              
               final onboardingComplete = snapshot.data ?? false;
               _navigate(onboardingComplete);
               // Et on continue d'afficher le chargement pendant la transition
               return _buildLoadingWidget();
             }
-          } 
+          }
           return _buildLoadingWidget();
         },
       ),
     );
   }
- 
+
   Widget _buildLoadingWidget() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Image.asset(
-          'assets/images/logo.png',
-          width: 250,  
-          
-        ),
+        Image.asset('assets/images/logo.png', width: 250),
         const SizedBox(height: 80),
         const SpinKitThreeBounce(color: Colors.black, size: 40.0),
       ],
     );
   }
 
-   
   Widget _buildErrorWidget() {
     return Padding(
       padding: const EdgeInsets.all(20.0),
@@ -126,7 +120,6 @@ class _SplashScreenState extends State<SplashScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
             ),
             onPressed: () {
-               
               setState(() {
                 _initFuture = _initializeApp();
               });

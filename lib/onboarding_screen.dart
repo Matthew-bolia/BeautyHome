@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:myapp/auth_screen.dart';
+import 'package:beauty_home/auth_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Importer le package
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
@@ -52,7 +52,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
     {
       'imageUrl':
-          'https://media.istockphoto.com/id/1141255401/photo/businessman-work-with-friend.webp?a=1&b=1&s=612x612&w=0&k=20&c=2g7fNFAxS_Mf46fGOcQcwRGZdeWmouTMZ5vKNZ5ScXU=',
+          'https://plus.unsplash.com/premium_photo-1669675936436-f9c8f870b333?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDEwfHx8ZW58MHx8fHx8',
       'FR': {
         'title': 'Gérez vos rendez-vous en un clin d\'œil',
         'description':

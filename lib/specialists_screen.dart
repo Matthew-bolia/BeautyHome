@@ -1,149 +1,100 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'widgets/skeleton_loader.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'booking_screen.dart'; // Ajustez le chemin si besoin
 
-// --- Modèle de données pour un spécialiste ---
-class Specialist {
-  final String name;
-  final String role;
-  final String imageUrl;
-
-  const Specialist({
-    required this.name,
-    required this.role,
-    required this.imageUrl,
-  });
-}
-
-// --- Écran affichant la liste des spécialistes ---
 class SpecialistsScreen extends StatelessWidget {
   const SpecialistsScreen({super.key});
-
-  // --- Données de démonstration (cohérentes avec booking_screen.dart) ---
-  final List<Specialist> specialists = const [
-    Specialist(
-      name: 'Isabelle Fontaine',
-      role: 'Directrice artistique',
-      imageUrl:
-          'https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=400',
-    ),
-    Specialist(
-      name: 'Marcus Dupont',
-      role: 'Coloriste expert',
-      imageUrl:
-          'https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=400',
-    ),
-    Specialist(
-      name: 'Sophie Leblanc',
-      role: 'Styliste & visagiste',
-      imageUrl:
-          'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=400',
-    ),
-    Specialist(
-      name: 'Théo Bernard',
-      role: 'Barbier & coiffeur homme',
-      imageUrl:
-          'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=400',
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Notre Équipe',
-          style: GoogleFonts.playfairDisplay(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-        elevation: 1,
+        title: Text('Nos Spécialistes', style: GoogleFonts.lato(fontWeight: FontWeight.bold)),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.75, // Ajustez pour le design souhaité
-        ),
-        itemCount: specialists.length,
-        itemBuilder: (context, index) {
-          final specialist = specialists[index];
-          return _buildSpecialistCard(context, specialist);
-        },
-      ),
-    );
-  }
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('specialists').orderBy('name').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const GridSkeleton(itemCount: 4); // Squelette de grille
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Erreur: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('Aucun spécialiste disponible pour le moment.'));
+          }
 
-  Widget _buildSpecialistCard(BuildContext context, Specialist specialist) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => BookingScreen(preselectedSpecialistName: specialist.name, preselectedService: '',),
-      )),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 5,
-        shadowColor: Colors.black.withOpacity(0.15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // --- Image ---
-            Expanded(
-              child: Image.network(
-                specialist.imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (ctx, child, progress) => progress == null
-                    ? child
-                    : Container(
-                        color: Colors.grey[200],
-                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                      ),
-                errorBuilder: (ctx, err, stack) => Container(
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.person, color: Colors.grey, size: 40)),
-              ),
+          final specialists = snapshot.data!.docs;
+
+          return GridView.builder(
+            padding: const EdgeInsets.all(16.0),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16.0,
+              mainAxisSpacing: 16.0,
+              childAspectRatio: 0.8, // Ajuster le ratio pour plus d'espace vertical
             ),
-            // --- Contenu Texte ---
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    specialist.name,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.oswald(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface,
+            itemCount: specialists.length,
+            itemBuilder: (context, index) {
+              final specialist = specialists[index];
+              final data = specialist.data() as Map<String, dynamic>;
+
+              return Card(
+                elevation: 4.0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15.0),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    // TODO: Action au clic (ex: voir le profil détaillé)
+                  },
+                  borderRadius: BorderRadius.circular(15.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 45,
+                          backgroundColor: Colors.grey[200],
+                          backgroundImage: data.containsKey('imageUrl') && data['imageUrl'].isNotEmpty
+                              ? CachedNetworkImageProvider(data['imageUrl'])
+                              : null,
+                          child: !(data.containsKey('imageUrl') && data['imageUrl'].isNotEmpty)
+                              ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          data['name'] ?? 'Spécialiste',
+                          style: GoogleFonts.lato(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          data['role'] ?? '',
+                          style: GoogleFonts.openSans(
+                            fontSize: 13,
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.w600
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    specialist.role,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.lato(
-                      fontSize: 12,
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

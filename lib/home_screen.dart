@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,14 +8,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:dio/dio.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'profile_screen.dart';
 import 'user_provider.dart';
 import 'booking_screen.dart';
+import 'services/image_upload_service.dart'; // Import du service d'upload
 import 'admin_dashboard.dart';
 import 'services_screen.dart';
 import 'specialists_screen.dart';
+import 'auth_storage.dart';
+import 'widgets/skeleton_loader.dart'; // Import du squelette
 
 // --- Écran de Notifications (Placeholder) ---
 class NotificationsScreen extends StatelessWidget {
@@ -41,8 +46,6 @@ class Publication {
     required this.publicationDate,
     required this.description,
   });
-
-  // Factory constructor pour créer une instance depuis un document Firestore
   factory Publication.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Publication(
@@ -50,7 +53,9 @@ class Publication {
       userName: data['userName'] ?? 'Utilisateur inconnu',
       userProfileImageUrl: data['userProfileImageUrl'] ?? '',
       publicationImageUrl: data['publicationImageUrl'] ?? '',
-      publicationDate: (data['publicationDate'] as Timestamp).toDate(),
+      publicationDate: data['publicationDate'] is Timestamp
+          ? (data['publicationDate'] as Timestamp).toDate()
+          : DateTime.now(),
       description: data['description'] ?? '',
     );
   }
@@ -68,6 +73,8 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  final ImageUploadService _uploadService =
+      ImageUploadService(); // Instance du service
 
   @override
   void initState() {
@@ -89,29 +96,42 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _saveImage(BuildContext context, String imageUrl) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     try {
-      // 1. Demander la permission
-      var status = await Permission.photos.request();
-      if (status.isGranted) {
-        // 2. Télécharger l'image
-        var response = await Dio().get(
-          imageUrl,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        // 3. Sauvegarder dans la galerie
-        final result = await ImageGallerySaver.saveImage(
-          Uint8List.fromList(response.data),
-          quality: 80,
-          name: "beauty_home_${DateTime.now().millisecondsSinceEpoch}",
-        );
-        if (result['isSuccess']) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(content: Text('Image enregistrée dans la galerie.')),
-          );
-        } else {
-          throw Exception('Échec de la sauvegarde de l\'image.');
+      final originalUrl = imageUrl.replaceAll(
+        RegExp(r'/upload/.*?/'),
+        '/upload/',
+      );
+
+      if (kIsWeb) {
+        if (!await launchUrl(
+          Uri.parse(originalUrl),
+          mode: LaunchMode.externalApplication,
+        )) {
+          throw Exception('Impossible d\'ouvrir l\'URL: $originalUrl');
         }
       } else {
-        throw Exception('Permission de stockage refusée.');
+        var status = await Permission.photos.request();
+        if (status.isGranted) {
+          var response = await Dio().get(
+            originalUrl,
+            options: Options(responseType: ResponseType.bytes),
+          );
+          final result = await ImageGallerySaverPlus.saveImage(
+            Uint8List.fromList(response.data),
+            quality: 80,
+            name: "beauty_home_${DateTime.now().millisecondsSinceEpoch}",
+          );
+          if (result['isSuccess']) {
+            scaffoldMessenger.showSnackBar(
+              const SnackBar(
+                content: Text('Image enregistrée dans la galerie.'),
+              ),
+            );
+          } else {
+            throw Exception('Échec de la sauvegarde de l\'image.');
+          }
+        } else {
+          throw Exception('Permission de stockage refusée.');
+        }
       }
     } catch (e) {
       scaffoldMessenger.showSnackBar(
@@ -169,8 +189,18 @@ class _HomeScreenState extends State<HomeScreen>
             padding: const EdgeInsets.all(8.0),
             child: CircleAvatar(
               backgroundColor: Colors.grey[300],
-              backgroundImage: photoURL != null ? NetworkImage(photoURL) : null,
-              child: photoURL == null
+              backgroundImage:
+                  (photoURL != null &&
+                      photoURL.isNotEmpty &&
+                      photoURL.startsWith('http'))
+                  ? CachedNetworkImageProvider(
+                      _uploadService.optimizeUrl(photoURL, width: 100),
+                    )
+                  : null,
+              child:
+                  (photoURL == null ||
+                      photoURL.isEmpty ||
+                      !photoURL.startsWith('http'))
                   ? Icon(
                       Icons.person,
                       color: Theme.of(context).colorScheme.primary,
@@ -230,12 +260,12 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           _buildDrawerItem(
             icon: Icons.content_cut_outlined,
-            text: 'Tous nos services',
+            text: 'Notre Catalogue',
             onTap: () {
               Navigator.pop(context);
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AllServicesScreen()),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ServicesScreen()));
             },
           ),
           _buildDrawerItem(
@@ -265,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen>
             const Divider(height: 20, thickness: 1, indent: 16, endIndent: 16),
             _buildDrawerItem(
               icon: Icons.dashboard_outlined,
-              text: 'Dashboard Admin',
+              text: 'Tableau de bord',
               onTap: () {
                 Navigator.pop(context);
                 Navigator.of(context).push(
@@ -287,11 +317,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildDrawerHeader() {
+    const headerImageUrl =
+        'https://images.pexels.com/photos/1319459/pexels-photo-1319459.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
     return DrawerHeader(
       decoration: BoxDecoration(
         image: DecorationImage(
-          image: const NetworkImage(
-            'https://images.pexels.com/photos/1319459/pexels-photo-1319459.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+          image: CachedNetworkImageProvider(
+            // Utilise le service centralisé
+            _uploadService.optimizeUrl(headerImageUrl, width: 600),
           ),
           fit: BoxFit.cover,
           colorFilter: ColorFilter.mode(
@@ -339,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showLogoutConfirmationDialog(BuildContext context) {
-    Navigator.of(context).pop(); // Ferme le drawer d'abord
+    Navigator.of(context).pop();
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -354,18 +387,17 @@ class _HomeScreenState extends State<HomeScreen>
           actions: <Widget>[
             TextButton(
               child: const Text('Annuler'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(),
             ),
             TextButton(
               style: TextButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),
               child: const Text('Se déconnecter'),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(dialogContext).pop();
-                FirebaseAuth.instance.signOut();
+                await AuthStorageService.clearCredentials();
+                await FirebaseAuth.instance.signOut();
               },
             ),
           ],
@@ -375,83 +407,118 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildPinterestFeed() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('publications')
-          .orderBy('publicationDate', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return const Center(child: Text('Une erreur est survenue.'));
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.photo_library_outlined,
-                  size: 60,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Aucune publication pour le moment',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: 20,
-                    color: Colors.grey[400],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final publications = snapshot.data!.docs
-            .map((doc) => Publication.fromFirestore(doc))
-            .toList();
-
-        final filteredPublications = publications
-            .where(
-              (pub) =>
-                  pub.userName.toLowerCase().contains(_searchQuery) ||
-                  pub.description.toLowerCase().contains(_searchQuery),
-            )
-            .toList();
-
-        if (filteredPublications.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.search_off, size: 60, color: Colors.grey[300]),
-                const SizedBox(height: 12),
-                Text(
-                  'Aucun résultat pour "$_searchQuery"',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: 20,
-                    color: Colors.grey[400],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return MasonryGridView.count(
-          padding: const EdgeInsets.all(10),
-          crossAxisCount: 2,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          itemCount: filteredPublications.length,
-          itemBuilder: (context, index) {
-            return _buildPinCard(filteredPublications[index]);
-          },
-        );
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Le Stream de Firestore se met à jour automatiquement en temps réel.
+        // On ajoute un petit délai pour donner un feedback visuel à l'utilisateur via le spinner.
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) setState(() {});
       },
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('publications')
+            .orderBy('publicationDate', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const PinterestGridSkeleton();
+          }
+          if (snapshot.hasError) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.4,
+                  child: const Center(child: Text('Une erreur est survenue.')),
+                ),
+              ],
+            );
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.photo_library_outlined,
+                          size: 60,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Aucune publication pour le moment',
+                          style: GoogleFonts.cormorantGaramond(
+                            fontSize: 20,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          final publications = snapshot.data!.docs
+              .map((doc) => Publication.fromFirestore(doc))
+              .toList();
+          final filteredPublications = publications
+              .where(
+                (pub) =>
+                    pub.userName.toLowerCase().contains(_searchQuery) ||
+                    pub.description.toLowerCase().contains(_searchQuery),
+              )
+              .toList();
+
+          if (filteredPublications.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 60,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Aucun résultat pour "$_searchQuery"',
+                          style: GoogleFonts.cormorantGaramond(
+                            fontSize: 20,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return MasonryGridView.count(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(10),
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            itemCount: filteredPublications.length,
+            itemBuilder: (context, index) =>
+                _buildPinCard(filteredPublications[index]),
+          );
+        },
+      ),
     );
   }
 
@@ -462,75 +529,48 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.07),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              alignment: Alignment.topRight,
-              children: [
-                Image.network(
+            if (publication.publicationImageUrl.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: _uploadService.optimizeUrl(
+                  // Utilise le service centralisé
                   publication.publicationImageUrl,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (ctx, child, progress) => progress == null
-                      ? child
-                      : Container(
-                          color: Colors.grey[100],
-                          child: const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                  errorBuilder: (ctx, e, s) => Container(
-                    color: Colors.grey[100],
-                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                  width: 400,
+                ),
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: Colors.grey[100],
+                  child: const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Material(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(30),
-                    child: InkWell(
-                      onTap: () =>
-                          _saveImage(context, publication.publicationImageUrl),
-                      borderRadius: BorderRadius.circular(30),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Icon(
-                          Icons.save_alt,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey[100],
+                  child: const Icon(Icons.broken_image, color: Colors.grey),
                 ),
-              ],
-            ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    publication.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.grey[700],
+                  if (publication.description.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        publication.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -602,17 +642,41 @@ class _HomeScreenState extends State<HomeScreen>
                   controller: scrollController,
                   child: Column(
                     children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(20),
+                      if (publication.publicationImageUrl.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                          child: Container(
+                            color: Colors.grey[50],
+                            child: CachedNetworkImage(
+                              imageUrl: _uploadService.optimizeUrl(
+                                publication.publicationImageUrl,
+                                width: 800,
+                              ),
+                              height: 350,
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                              placeholder: (context, url) => Container(
+                                height: 350,
+                                color: Colors.grey[100],
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  const SizedBox(
+                                    height: 350,
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                            ),
+                          ),
                         ),
-                        child: Image.network(
-                          publication.publicationImageUrl,
-                          width: double.infinity,
-                          height: 380,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
                       Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(
@@ -622,9 +686,25 @@ class _HomeScreenState extends State<HomeScreen>
                               children: [
                                 CircleAvatar(
                                   radius: 24,
-                                  backgroundImage: NetworkImage(
-                                    publication.userProfileImageUrl,
-                                  ),
+                                  backgroundImage:
+                                      (publication
+                                              .userProfileImageUrl
+                                              .isNotEmpty &&
+                                          publication.userProfileImageUrl
+                                              .startsWith('http'))
+                                      ? CachedNetworkImageProvider(
+                                          // Utilise le service centralisé
+                                          _uploadService.optimizeUrl(
+                                            publication.userProfileImageUrl,
+                                            width: 100,
+                                            height: 100,
+                                            isAvatar: true,
+                                          ),
+                                        )
+                                      : null,
+                                  child: publication.userProfileImageUrl.isEmpty
+                                      ? const Icon(Icons.person)
+                                      : null,
                                 ),
                                 const SizedBox(width: 14),
                                 Column(
@@ -664,32 +744,32 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.calendar_today_outlined),
-                          label: Text(
-                            'Réserver ce style',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _openBookingFromPost(publication);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A1A2E),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 52),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.calendar_today_outlined),
+                  label: Text(
+                    'Réserver ce style',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openBookingFromPost(publication);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),

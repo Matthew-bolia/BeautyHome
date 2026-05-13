@@ -1,0 +1,1 @@
+ C:\\Users\\matthieu.bolia\\Documents\\BeautyHome\\.dart_tool\\flutter_build\\0b3879f30c74f424b5538a256a4ca98f\\native_assets.json: 

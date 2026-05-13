@@ -1,0 +1,123 @@
+/*
+    FIRESTORE SECURITY RULES - SERVICES MANAGEMENT
+    
+    Ces règles doivent être appliquées à votre base de données Firestore
+    pour assurer la sécurité du système de gestion des services.
+    
+    Copiez et collez ces règles dans votre console Firebase -> Firestore -> Règles
+*/
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function pour vérifier si l'utilisateur est admin
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // ===== COLLECTION: salonServices =====
+    // Nouveaux services du salon avec catégories et images multiples
+    match /salonServices/{document=**} {
+      // Les clients peuvent lire tous les services actifs
+      allow read: if resource.data.isActive == true;
+      
+      // Seul l'admin peut créer, modifier ou supprimer
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===== COLLECTION: services =====
+    // Anciens services (conservation pour compatibilité)
+    match /services/{document=**} {
+      // Les clients peuvent lire tous les services
+      allow read: if true;
+      
+      // Seul l'admin peut créer, modifier ou supprimer
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===== COLLECTION: users =====
+    // Nécessaire pour vérifier le rôle admin
+    match /users/{userId} {
+      // Chaque utilisateur peut lire son profil
+      allow read: if request.auth.uid == userId;
+      
+      // Seul l'admin peut mettre à jour les rôles
+      allow update: if isAdmin();
+      
+      // Les utilisateurs peuvent créer leur profil lors de l'inscription
+      allow create: if request.auth.uid == userId;
+    }
+
+    // ===== COLLECTION: serviceCategories =====
+    // Catégories prédéfinies (en lecture seule pour les clients)
+    match /serviceCategories/{document=**} {
+      // Tout le monde peut lire les catégories
+      allow read: if true;
+      
+      // Seul l'admin peut créer/modifier/supprimer
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===== COLLECTION: specialists =====
+    match /specialists/{document=**} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===== COLLECTION: bookings =====
+    match /bookings/{document=**} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update, delete: if isAdmin() || request.auth.uid == resource.data.userId;
+    }
+
+    // ===== COLLECTION: publications =====
+    match /publications/{document=**} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===== CATCH-ALL (par défaut refuser) =====
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+/*
+    INSTRUCTIONS D'APPLICATION:
+
+    1. Allez à Firebase Console (https://console.firebase.google.com/)
+    2. Sélectionnez votre projet "beauty_home"
+    3. Allez à Firestore Database
+    4. Cliquez sur l'onglet "Règles"
+    5. Remplacez le contenu par les règles ci-dessus
+    6. Cliquez sur "Publier"
+
+    IMPORTANT:
+    - Assurez-vous que votre document utilisateur a le champ "isAdmin" défini à true pour les administrateurs
+    - Structure utilisateur recommandée:
+    {
+      "email": "admin@example.com",
+      "name": "Admin Name",
+      "isAdmin": true,
+      "createdAt": timestamp,
+      ...
+    }
+
+    TESTS DES RÈGLES:
+    
+    1. Client non connecté:
+       - ✅ Peut lire les services avec isActive: true
+       - ❌ Ne peut pas créer/modifier/supprimer
+    
+    2. Client connecté (non-admin):
+       - ✅ Peut lire les services
+       - ❌ Ne peut pas créer/modifier/supprimer
+    
+    3. Admin connecté:
+       - ✅ Peut tout faire (créer, lire, modifier, supprimer)
+       - ✅ Peut modifier les rôles utilisateur
+*/

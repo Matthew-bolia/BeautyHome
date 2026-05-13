@@ -1,173 +1,281 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'booking_screen.dart'; // Ajustez le chemin si nécessaire
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'models/service_models.dart';
+import 'catalog_detail_screen.dart';
 
-// --- Modèle de données pour un service ---
-class Service {
-  final String name;
-  final String description;
-  final String price;
-  final String imageUrl;
+class ServicesScreen extends StatefulWidget {
+  const ServicesScreen({super.key});
 
-  const Service({
-    required this.name,
-    required this.description,
-    required this.price,
-    required this.imageUrl,
-  });
+  @override
+  State<ServicesScreen> createState() => _ServicesScreenState();
 }
 
-// --- Écran affichant la liste des services ---
-class AllServicesScreen extends StatelessWidget {
-  const AllServicesScreen({super.key});
-
-  // --- Données de démonstration ---
-  final List<Service> services = const [
-    Service(
-      name: 'Coupe & Brushing',
-      description: 'Une coupe moderne suivie d\'un brushing parfait pour un style impeccable.',
-      price: 'À partir de 45€',
-      imageUrl: 'https://images.pexels.com/photos/3065209/pexels-photo-3065209.jpeg',
-    ),
-    Service(
-      name: 'Coloration & Soin',
-      description: 'Une couleur vibrante et durable, accompagnée d\'un soin profond pour protéger vos cheveux.',
-      price: 'À partir de 75€',
-      imageUrl: 'https://images.pexels.com/photos/3993449/pexels-photo-3993449.jpeg',
-    ),
-    Service(
-      name: 'Manucure Classique',
-      description: 'Limage, soin des cuticules, et pose de vernis pour des mains élégantes.',
-      price: '30€',
-      imageUrl: 'https://images.pexels.com/photos/3997394/pexels-photo-3997394.jpeg',
-    ),
-     Service(
-      name: 'Soin Capillaire Profond',
-      description: 'Un traitement réparateur intensif pour redonner vie et brillance à vos cheveux.',
-      price: '55€',
-      imageUrl: 'https://images.pexels.com/photos/2896853/pexels-photo-2896853.jpeg',
-    ),
-     Service(
-      name: 'Coiffure de Soirée',
-      description: 'Un chignon élégant ou des ondulations glamour pour vos événements spéciaux.',
-      price: 'À partir de 60€',
-      imageUrl: 'https://images.pexels.com/photos/3738351/pexels-photo-3738351.jpeg',
-    ),
-  ];
+class _ServicesScreenState extends State<ServicesScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Nos Prestations',
-          style: GoogleFonts.playfairDisplay(
-            fontWeight: FontWeight.bold,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search_sharp),
+            onPressed: () => setState(() {}),
           ),
+        ],
+        title: Text(
+          'Nos Catalogues de Services',
+          style: GoogleFonts.lato(fontWeight: FontWeight.bold),
         ),
-        centerTitle: true,
-        elevation: 1,
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        itemCount: services.length,
-        itemBuilder: (context, index) {
-          final service = services[index];
-          return _buildServiceCard(context, service);
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _firestore.collection('serviceCategories').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('Aucun catalogue disponible.'));
+          }
+
+          final displayCategories = snapshot.data!.docs
+              .map((doc) => ServiceCategory.fromFirestore(doc))
+              .toList();
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            itemCount: displayCategories.length,
+            itemBuilder: (context, index) {
+              final category = displayCategories[index];
+              return _CatalogCard(
+                category: category,
+                firestore: _firestore,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => CatalogDetailScreen(
+                        categoryId: category.id,
+                        categoryName: category.name,
+                        categoryIcon: category.icon,
+                        categoryIconAsset: category.iconAsset,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          );
         },
       ),
     );
   }
+}
 
-  Widget _buildServiceCard(BuildContext context, Service service) {
+class _CatalogCard extends StatefulWidget {
+  final ServiceCategory category;
+  final FirebaseFirestore firestore;
+  final VoidCallback onTap;
+  const _CatalogCard({
+    required this.category,
+    required this.firestore,
+    required this.onTap,
+  });
+
+  @override
+  State<_CatalogCard> createState() => _CatalogCardState();
+}
+
+class _CatalogCardState extends State<_CatalogCard> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 20),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- Image ---
-          SizedBox(
-            height: 180,
-            width: double.infinity,
-            child: Image.network(
-              service.imageUrl,
-              fit: BoxFit.cover,
-               loadingBuilder: (ctx, child, progress) => progress == null
-                  ? child
-                  : Container(
-                      color: Colors.grey[200],
-                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    ),
-              errorBuilder: (ctx, err, stack) => Container(
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.broken_image, color: Colors.grey)),
+    return StreamBuilder<QuerySnapshot>(
+      stream: widget.firestore
+          .collection('salonServices')
+          .where('categoryId', isEqualTo: widget.category.id)
+          .where('isActive', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        List<ServiceImage> images = [];
+        int serviceCount = 0;
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          serviceCount = snapshot.data!.docs.length;
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            if (data['images'] is List) {
+              images.addAll(
+                (data['images'] as List)
+                    .map((m) => ServiceImage.fromMap(m as Map<String, dynamic>))
+                    .toList(),
+              );
+            }
+          }
+        }
+
+        String displayIcon = widget.category.icon;
+
+        return GestureDetector(
+          onTap: widget.onTap,
+          child: Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
             ),
-          ),
-          // --- Contenu Texte ---
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  service.name,
-                  style: GoogleFonts.oswald(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  service.description,
-                  style: GoogleFonts.lato(
-                    fontSize: 14,
-                    color: theme.colorScheme.onSurface.withOpacity(0.7),
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // --- Prix et Bouton ---
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      service.price,
-                      style: GoogleFonts.oswald(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
-                      ),
+                // Header
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: theme.primaryColor.withOpacity(0.1),
+                    child: Text(
+                      displayIcon,
+                      style: const TextStyle(fontSize: 20),
                     ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => BookingScreen(
-                            preselectedService: service.name,
+                  ),
+                  title: Text(
+                    widget.category.name,
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text('Catalogue'),
+                ),
+                // Media (Carousel)
+                SizedBox(
+                  height: 300,
+                  child: Stack(
+                    alignment: Alignment.bottomCenter,
+                    children: [
+                      PageView.builder(
+                        controller: _pageController,
+                        onPageChanged: (index) =>
+                            setState(() => _currentPage = index),
+                        itemCount: images.isNotEmpty
+                            ? images.length
+                            : (widget.category.assetImages.isNotEmpty
+                                  ? widget.category.assetImages.length
+                                  : 1),
+                        itemBuilder: (context, index) {
+                          if (images.isNotEmpty) {
+                            return CachedNetworkImage(
+                              imageUrl: images[index].imageUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) =>
+                                  Container(color: Colors.grey[100]),
+                            );
+                          } else if (widget.category.assetImages.isNotEmpty) {
+                            return CachedNetworkImage(
+                              imageUrl: widget.category.assetImages[index],
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) =>
+                                  Container(color: Colors.grey[100]),
+                            );
+                          } else {
+                            return Container(
+                              color: Colors.grey[200],
+                              child: const Icon(
+                                Icons.image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      if (images.length > 1 ||
+                          widget.category.assetImages.length > 1)
+                        Positioned(
+                          bottom: 12,
+                          child: SmoothPageIndicator(
+                            controller: _pageController,
+                            count: images.isNotEmpty
+                                ? images.length
+                                : widget.category.assetImages.length,
+                            effect: const ScrollingDotsEffect(
+                              activeDotColor: Colors.white,
+                              dotColor: Colors.white54,
+                              dotHeight: 8,
+                              dotWidth: 8,
+                            ),
                           ),
-                        ));
-                      },
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ],
+                  ),
+                ),
+                // Footer
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.category.description,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: theme.colorScheme.onSurface.withOpacity(0.8),
+                        ),
                       ),
-                      child: const Text('Réserver'),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '$serviceCount service${serviceCount > 1 ? 's' : ''} publié${serviceCount > 1 ? 's' : ''}',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: theme.primaryColor,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'Voir tout →',
+                            style: TextStyle(
+                              color: theme.primaryColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

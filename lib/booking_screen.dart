@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-// ─── Modèles de données ────────────────────────────────────────────────────
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'widgets/skeleton_loader.dart';
 
 class SalonService {
   final String id, name, description, icon;
   final int durationMinutes;
   final double price;
+  final String currency;
   SalonService({
     required this.id,
     required this.name,
@@ -14,7 +16,21 @@ class SalonService {
     required this.icon,
     required this.durationMinutes,
     required this.price,
+    required this.currency,
   });
+
+  factory SalonService.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return SalonService(
+      id: doc.id,
+      name: data['name'] ?? '',
+      description: data['description'] ?? '',
+      icon: data['icon'] ?? '✨',
+      durationMinutes: data['durationMinutes'] ?? 0,
+      price: (data['price'] as num?)?.toDouble() ?? 0.0,
+      currency: data['currency'] ?? '\$',
+    );
+  }
 }
 
 class SalonSpecialist {
@@ -25,138 +41,37 @@ class SalonSpecialist {
     required this.role,
     required this.imageUrl,
   });
+
+  factory SalonSpecialist.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return SalonSpecialist(
+      id: doc.id,
+      name: data['name'] ?? '',
+      role: data['role'] ?? '',
+      imageUrl: data['imageUrl'] ?? '',
+    );
+  }
 }
 
-// ─── Données statiques ─────────────────────────────────────────────────────
-
-final List<SalonService> _services = [
-  SalonService(
-    id: 's1',
-    name: 'Coupe femme',
-    description: 'Coupe + brushing inclus',
-    icon: '✂️',
-    durationMinutes: 60,
-    price: 45,
-  ),
-  SalonService(
-    id: 's2',
-    name: 'Coupe homme',
-    description: 'Coupe classique ou dégradé',
-    icon: '💈',
-    durationMinutes: 30,
-    price: 22,
-  ),
-  SalonService(
-    id: 's3',
-    name: 'Coloration',
-    description: 'Couleur complète ou mèches',
-    icon: '🎨',
-    durationMinutes: 90,
-    price: 75,
-  ),
-  SalonService(
-    id: 's4',
-    name: 'Balayage',
-    description: 'Balayage naturel ou californien',
-    icon: '🌟',
-    durationMinutes: 120,
-    price: 95,
-  ),
-  SalonService(
-    id: 's5',
-    name: 'Lissage brésilien',
-    description: 'Lissage longue durée',
-    icon: '💆',
-    durationMinutes: 150,
-    price: 120,
-  ),
-  SalonService(
-    id: 's6',
-    name: 'Soin capillaire',
-    description: 'Masque + traitement profond',
-    icon: '🧴',
-    durationMinutes: 45,
-    price: 35,
-  ),
-  SalonService(
-    id: 's7',
-    name: 'Coiffure de mariage',
-    description: 'Mise en beauté & chignon',
-    icon: '👰',
-    durationMinutes: 180,
-    price: 150,
-  ),
-  SalonService(
-    id: 's8',
-    name: 'Permanente',
-    description: 'Boucles ou ondulations',
-    icon: '🌀',
-    durationMinutes: 120,
-    price: 85,
-  ),
-];
-
-final List<SalonSpecialist> _specialists = [
-  SalonSpecialist(
-    id: 'sp1',
-    name: 'Isabelle Fontaine',
-    role: 'Directrice artistique',
-    imageUrl:
-        'https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg?auto=compress&cs=tinysrgb&w=400',
-  ),
-  SalonSpecialist(
-    id: 'sp2',
-    name: 'Marcus Dupont',
-    role: 'Coloriste expert',
-    imageUrl:
-        'https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=400',
-  ),
-  SalonSpecialist(
-    id: 'sp3',
-    name: 'Sophie Leblanc',
-    role: 'Styliste',
-    imageUrl:
-        'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=400',
-  ),
-  SalonSpecialist(
-    id: 'sp4',
-    name: 'Théo Bernard',
-    role: 'Barbier & coiffeur',
-    imageUrl:
-        'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=400',
-  ),
-];
-
-final List<String> _timeSlots = [
-  '09:00',
-  '09:30',
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00',
-  '16:30',
-  '17:00',
-  '17:30',
-];
-
 // ─── Écran principal de réservation ────────────────────────────────────────
-
 class BookingScreen extends StatefulWidget {
   final String? preselectedSpecialistName;
-  const BookingScreen({super.key, this.preselectedSpecialistName, required String preselectedService});
+  final String? preselectedService;
+  const BookingScreen({
+    super.key,
+    this.preselectedSpecialistName,
+    this.preselectedService,
+  });
 
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
 class _BookingScreenState extends State<BookingScreen> {
-  int _currentStep = 0;
+  late Future<List<SalonService>> _servicesFuture;
+  late Future<List<SalonSpecialist>> _specialistsFuture;
 
+  int _currentStep = 0;
   SalonService? _selectedService;
   SalonSpecialist? _selectedSpecialist;
   DateTime? _selectedDate;
@@ -164,18 +79,64 @@ class _BookingScreenState extends State<BookingScreen> {
   final _noteController = TextEditingController();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-
   bool _isConfirmed = false;
+
+  final List<String> _timeSlots = [
+    '09:00',
+    '09:30',
+    '10:00',
+    '10:30',
+    '11:00',
+    '11:30',
+    '14:00',
+    '14:30',
+    '15:00',
+    '15:30',
+    '16:00',
+    '16:30',
+    '17:00',
+    '17:30',
+  ];
 
   @override
   void initState() {
     super.initState();
-    if (widget.preselectedSpecialistName != null) {
-      _selectedSpecialist = _specialists.firstWhere(
-        (s) => s.name == widget.preselectedSpecialistName,
-        orElse: () => _specialists.first,
+    _servicesFuture = _fetchServices();
+    _specialistsFuture = _fetchSpecialists();
+  }
+
+  Future<List<SalonService>> _fetchServices() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('salonServices')
+        .get();
+    final services = snapshot.docs
+        .map((doc) => SalonService.fromFirestore(doc))
+        .toList();
+    if (widget.preselectedService != null) {
+      final preselected = services.firstWhere(
+        (s) => s.name == widget.preselectedService,
+        orElse: () => services.first,
       );
+      setState(() => _selectedService = preselected);
     }
+    return services;
+  }
+
+  Future<List<SalonSpecialist>> _fetchSpecialists() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('specialists')
+        .get();
+    final specialists = snapshot.docs
+        .map((doc) => SalonSpecialist.fromFirestore(doc))
+        .toList();
+    if (widget.preselectedSpecialistName != null) {
+      final preselected = specialists.firstWhere(
+        (s) => s.name == widget.preselectedSpecialistName,
+        orElse: () => specialists.first,
+      );
+      setState(() => _selectedSpecialist = preselected);
+    }
+    return specialists;
   }
 
   @override
@@ -184,6 +145,15 @@ class _BookingScreenState extends State<BookingScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  String _formatDuration(int minutes) {
+    if (minutes <= 0) return '0 min';
+    if (minutes % 60 == 0) return '${minutes ~/ 60}h';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h > 0) return '${h}h${m}';
+    return '$minutes min';
   }
 
   bool get _canProceed {
@@ -363,7 +333,6 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   // ── Step 1 : Choix du service ──────────────────────────────────────────
-
   Widget _buildServiceStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -372,17 +341,36 @@ class _BookingScreenState extends State<BookingScreen> {
         children: [
           _buildSectionTitle('Quel service souhaitez-vous ?'),
           const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.1,
-            ),
-            itemCount: _services.length,
-            itemBuilder: (context, i) => _buildServiceCard(_services[i]),
+          FutureBuilder<List<SalonService>>(
+            future: _servicesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const AspectRatio(
+                  aspectRatio: 1 / 1.2,
+                  child: ServiceStepSkeleton(),
+                );
+              }
+              if (snapshot.hasError ||
+                  !snapshot.hasData ||
+                  snapshot.data!.isEmpty) {
+                return const Center(
+                  child: Text("Impossible de charger les services."),
+                );
+              }
+              final services = snapshot.data!;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.1,
+                ),
+                itemCount: services.length,
+                itemBuilder: (context, i) => _buildServiceCard(services[i]),
+              );
+            },
           ),
         ],
       ),
@@ -437,7 +425,7 @@ class _BookingScreenState extends State<BookingScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${service.durationMinutes} min',
+                  _formatDuration(service.durationMinutes),
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     color: isSelected
@@ -446,7 +434,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                 ),
                 Text(
-                  '${service.price.toStringAsFixed(0)}€',
+                  '${service.currency} ${service.price.toStringAsFixed(0)}',
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -464,7 +452,6 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   // ── Step 2 : Choix du spécialiste ─────────────────────────────────────
-
   Widget _buildSpecialistStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -473,11 +460,34 @@ class _BookingScreenState extends State<BookingScreen> {
         children: [
           _buildSectionTitle('Choisissez votre spécialiste'),
           const SizedBox(height: 16),
-          ..._specialists.map(
-            (sp) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildSpecialistCard(sp),
-            ),
+          FutureBuilder<List<SalonSpecialist>>(
+            future: _specialistsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const AspectRatio(
+                  aspectRatio: 1 / 0.6,
+                  child: SpecialistStepSkeleton(),
+                );
+              }
+              if (snapshot.hasError ||
+                  !snapshot.hasData ||
+                  snapshot.data!.isEmpty) {
+                return const Center(
+                  child: Text("Impossible de charger les spécialistes."),
+                );
+              }
+              final specialists = snapshot.data!;
+              return Column(
+                children: specialists
+                    .map(
+                      (sp) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildSpecialistCard(sp),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -510,7 +520,13 @@ class _BookingScreenState extends State<BookingScreen> {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundImage: NetworkImage(sp.imageUrl),
+              backgroundImage:
+                  (sp.imageUrl.isNotEmpty && sp.imageUrl.startsWith('http'))
+                  ? CachedNetworkImageProvider(sp.imageUrl)
+                  : null,
+              child: sp.imageUrl.isEmpty
+                  ? const Icon(Icons.person, color: Colors.white)
+                  : null,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -550,8 +566,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  // ── Step 3 : Date & Heure ─────────────────────────────────────────────
-
+  // Reste du code inchangé (DateTimeStep, ContactStep, ConfirmationScreen, etc.)
   Widget _buildDateTimeStep() {
     final now = DateTime.now();
     return SingleChildScrollView(

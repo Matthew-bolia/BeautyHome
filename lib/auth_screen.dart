@@ -1,10 +1,13 @@
+
 import 'dart:developer' as developer;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'google_sign_in.dart';
+import 'package:beauty_home/home_screen.dart';
 import 'auth_storage.dart';
+import 'verify_code_screen.dart'; 
+ 
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -45,6 +48,16 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   @override
+  void dispose() {
+      _nameController.dispose();
+      _emailController.dispose();
+      _passwordController.dispose();
+      _confirmPasswordController.dispose();
+      super.dispose();
+  }
+
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
@@ -77,6 +90,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
   }
 
+  // ÉTAPE 3: MODIFICATION DE LA LOGIQUE DE SOUMISSION
   Future<void> _submitAuthForm() async {
     final isValid = _formKey.currentState?.validate();
     if (isValid != true || _isLoading) return;
@@ -85,33 +99,71 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       if (_isLogin) {
-        await _auth.signInWithEmailAndPassword(
+        // LOGIQUE DE CONNEXION
+        final userCredential = await _auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-        if (_rememberMe) {
-          await AuthStorageService.saveCredentials(
-            _emailController.text.trim(),
-            _passwordController.text.trim(),
-          );
-        } else {
-          await AuthStorageService.clearCredentials();
+
+        User? user = userCredential.user;
+        if (user != null) {
+          await user.reload();
+          user = _auth.currentUser; // Recharger pour le statut de vérification
+
+          if (user!.emailVerified) {
+            if (_rememberMe) {
+              await AuthStorageService.saveCredentials(
+                _emailController.text.trim(),
+                _passwordController.text.trim(),
+              );
+            } else {
+              await AuthStorageService.clearCredentials();
+            }
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            }
+          } else {
+            // Si l'email n'est pas vérifié, aller à l'écran de code
+             developer.log('Email non vérifié. Redirection vers la vérification par code.', name: 'AuthScreen');
+             if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Veuillez vérifier votre compte avec le code envoyé par e-mail.')),
+                );
+                Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => VerifyCodeScreen(email: user!.email!)),
+                );
+             }
+          }
         }
+
       } else {
+        // LOGIQUE D'INSCRIPTION
         final userCredential = await _auth.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-        if (userCredential.user != null) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userCredential.user!.uid)
-              .set({
-                'displayName': _nameController.text.trim(),
-                'email': _emailController.text.trim(),
-                'role': 'client',
-                'createdAt': Timestamp.now(),
-              });
+        
+        User? user = userCredential.user;
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'displayName': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'role': 'client',
+            'createdAt': Timestamp.now(),
+          });
+
+          // TODO: Déclencher l'envoi de l'email avec le code via une Cloud Function
+          developer.log('Utilisateur créé. Redirection vers la vérification par code.', name: 'AuthScreen');
+          if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Compte créé ! Veuillez vérifier votre e-mail pour obtenir le code.')),
+            );
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => VerifyCodeScreen(email: user.email!)),
+            );
+          }
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -124,12 +176,7 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
     } catch (e, s) {
-      developer.log(
-        'Erreur inattendue',
-        name: 'AuthScreen',
-        error: e,
-        stackTrace: s,
-      );
+      developer.log('Erreur inattendue', name: 'AuthScreen', error: e, stackTrace: s);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -313,16 +360,17 @@ class _AuthScreenState extends State<AuthScreen> {
                 ],
                 const SizedBox(height: 24),
                 _buildToggleSwitch(),
-                const SizedBox(height: 16),
-                buildSocialDivider(),
-                const SizedBox(height: 16),
-                if (!_isLoading)
-                  buildGoogleSignInButton(context, () async {
-                    if (_isLoading) return;
-                    setState(() => _isLoading = true);
-                    await handleGoogleSignIn(context);
-                    if (mounted) setState(() => _isLoading = false);
-                  }),
+                // ÉTAPE 2: Suppression du bouton et du séparateur Google
+                // const SizedBox(height: 16),
+                // buildSocialDivider(),
+                // const SizedBox(height: 16),
+                // if (!_isLoading)
+                //   buildGoogleSignInButton(context, () async {
+                //     if (_isLoading) return;
+                //     setState(() => _isLoading = true);
+                //     await handleGoogleSignIn(context);
+                //     if (mounted) setState(() => _isLoading = false);
+                //   }),
               ],
             ),
           ),

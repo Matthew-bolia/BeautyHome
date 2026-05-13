@@ -8,22 +8,26 @@ class UserProvider with ChangeNotifier {
   late final StreamSubscription<User?> _authSubscription;
 
   String? _uid;
-  String? _name;
+  String? _displayName;
+  String? _email;
   String? _photoURL;
-  bool _isAdmin = false; // <-- NOUVEAU: Utilise un booléen pour le statut admin
+  bool _isAdmin = false;
 
   String? get uid => _uid;
-  String? get name => _name;
+  String? get displayName => _displayName;
+  String? get email => _email;
   String? get photoURL => _photoURL;
-  bool get isAdmin => _isAdmin; // <-- NOUVEAU: Getter direct
+  bool get isAdmin => _isAdmin;
 
   UserProvider({FirebaseAuth? auth}) : _auth = auth ?? FirebaseAuth.instance {
     _authSubscription = _auth.authStateChanges().listen(_onAuthStateChanged);
   }
 
+  get name => null;
+
   Future<void> _onAuthStateChanged(User? user) async {
     if (user == null) {
-      clearUser();
+      _clearUser();
     } else {
       await _loadUserFromFirestore(user);
     }
@@ -31,27 +35,24 @@ class UserProvider with ChangeNotifier {
 
   Future<void> _loadUserFromFirestore(User user) async {
     _uid = user.uid;
-    _name = user.displayName;
-    _photoURL = user.photoURL;
+    _email = user.email; // Chargé depuis l'objet User de Auth
 
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
     if (userDoc.exists) {
       final data = userDoc.data() as Map<String, dynamic>;
-      _name = data['name'] ?? _name;
-      _photoURL = data['photoURL'] ?? _photoURL;
-      // <-- NOUVEAU: Lit le champ booléen 'isAdmin'
+      _displayName = data['displayName'] ?? user.displayName; // Prend depuis Firestore, sinon depuis Auth
+      _photoURL = data['photoURL'] ?? user.photoURL;
       _isAdmin = data['isAdmin'] ?? false;
     } else {
-      // Si le document n'existe pas, on le crée avec isAdmin: false
+      // Si le document n'existe pas, on le crée avec les infos de Auth
+      _displayName = user.displayName;
+      _photoURL = user.photoURL;
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': _name,
+        'displayName': _displayName,
+        'email': _email,
         'photoURL': _photoURL,
-        'email': user.email,
         'createdAt': FieldValue.serverTimestamp(),
-        // <-- NOUVEAU: Définit le statut admin par défaut
         'isAdmin': false,
       });
       _isAdmin = false;
@@ -60,22 +61,27 @@ class UserProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void clearUser() {
-    _uid = null;
-    _name = null;
-    _photoURL = null;
-    _isAdmin = false; // <-- NOUVEAU: Réinitialise au statut par défaut
-    notifyListeners();
-  }
-
-  Future<void> updateUserPhoto(String newPhotoURL) async {
+  void updateDisplayName(String newName) {
     if (_uid != null) {
-      _photoURL = newPhotoURL;
-      await FirebaseFirestore.instance.collection('users').doc(_uid!).update({
-        'photoURL': newPhotoURL,
-      });
+      _displayName = newName;
       notifyListeners();
     }
+  }
+
+  void updatePhotoUrl(String newPhotoURL) {
+    if (_uid != null) {
+      _photoURL = newPhotoURL;
+      notifyListeners();
+    }
+  }
+
+  void _clearUser() {
+    _uid = null;
+    _displayName = null;
+    _email = null;
+    _photoURL = null;
+    _isAdmin = false;
+    notifyListeners();
   }
 
   @override
